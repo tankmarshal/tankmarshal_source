@@ -71,4 +71,9 @@ create database hero;
     fun();
 ```
 
+## 折叠
+{% spoiler "隐藏内容的标题" %}
+隐藏的内容
+{% endspoiler %}
+
 
