@@ -1,0 +1,74 @@
+---
+title: socketIO-分析
+date: 2021-01-14 16:56:45
+tags:
+---
+# 问题一 socketIO的listener 是什么时候注入的
+首先，都会有这样一个Scanner
+```java
+    /**
+     * 开启SocketIOServer注解支持
+     *
+     * @param socketServer
+     * @return com.corundumstudio.socketio.annotation.SpringAnnotationScanner
+     */
+    @Bean
+    public SpringAnnotationScanner springAnnotationScanner(SocketIOServer socketServer) {
+        return new SpringAnnotationScanner(socketServer);
+    }
+```
+查看SpringAnnotationScanner 的代码
+会在扫描到OnConnect  OnDisconnect OnEvent 注解
+在postProcessAfterInitialization 方法中调用addListeners 添加监听
+```java
+  public class SpringAnnotationScanner implements BeanPostProcessor {
+      private static final Logger log = LoggerFactory.getLogger(SpringAnnotationScanner.class);
+      private final List<Class<? extends Annotation>> annotations = Arrays.asList(OnConnect.class, OnDisconnect.class, OnEvent.class);
+      private final SocketIOServer socketIOServer;
+      private Class originalBeanClass;
+  
+      public SpringAnnotationScanner(SocketIOServer socketIOServer) {
+          this.socketIOServer = socketIOServer;
+      }
+  
+      public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+          if (this.originalBeanClass != null) {
+              this.socketIOServer.addListeners(bean, this.originalBeanClass);
+              log.info("{} bean listeners added", beanName);
+              this.originalBeanClass = null;
+          }
+  
+          return bean;
+      }
+  
+      public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+          final AtomicBoolean add = new AtomicBoolean();
+          ReflectionUtils.doWithMethods(bean.getClass(), new MethodCallback() {
+              public void doWith(Method method) throws IllegalArgumentException, IllegalAccessException {
+                  add.set(true);
+              }
+          }, new MethodFilter() {
+              public boolean matches(Method method) {
+                  Iterator var2 = SpringAnnotationScanner.this.annotations.iterator();
+  
+                  Class annotationClass;
+                  do {
+                      if (!var2.hasNext()) {
+                          return false;
+                      }
+  
+                      annotationClass = (Class)var2.next();
+                  } while(!method.isAnnotationPresent(annotationClass));
+  
+                  return true;
+              }
+          });
+          if (add.get()) {
+              this.originalBeanClass = bean.getClass();
+          }
+  
+          return bean;
+      }
+  }
+
+```

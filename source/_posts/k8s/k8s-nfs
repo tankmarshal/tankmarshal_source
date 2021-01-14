@@ -1,0 +1,106 @@
+---
+title: k8s 挂载NFS 遇到的问题记录
+date: 2021-01-09 16:18:18
+tags: [k8s,nfs]
+categories: [k8s,k8s]
+---
+## deployment 配置：
+```sql
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: nginx-d
+  namespace: clc-test
+  selfLink: /apis/apps/v1/namespaces/test/deployments/nginx-d
+  uid: 4c77e5fb-2717-4b4e-8508-902c2372fb22
+  resourceVersion: '13909064'
+  generation: 2
+  creationTimestamp: '2021-01-09T08:10:48Z'
+  annotations:
+    deployment.kubernetes.io/revision: '1'
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-d
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: nginx-d
+    spec:
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            server: 192.168.0.1
+            path: /home/clc/workspace/
+      containers:
+        - name: nginx
+          image: 'nginx'
+          command:
+            - /bin/bash
+            - '-c'
+            - '--'
+          args:
+            - while true; do sleep 30; done;
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          env:
+            - name: PROVISIONER_NAME
+              value: example.com/nfs
+            - name: NFS_SERVER
+              value: 192.168.4.31
+            - name: NFS_PATH
+              value: /home/clc/workspace/
+          resources: {}
+          volumeMounts:
+            - name: nfs-client-root
+              mountPath: /home/clc/workspace/
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
+status:
+  observedGeneration: 2
+  replicas: 2
+  updatedReplicas: 2
+  readyReplicas: 2
+  availableReplicas: 2
+  conditions:
+    - type: Progressing
+      status: 'True'
+      lastUpdateTime: '2021-01-09T08:10:48Z'
+      lastTransitionTime: '2021-01-09T08:10:48Z'
+      reason: NewReplicaSetAvailable
+      message: ReplicaSet "nginx-d-bf9c45dc9" has successfully progressed.
+    - type: Available
+      status: 'True'
+      lastUpdateTime: '2021-01-09T08:10:49Z'
+      lastTransitionTime: '2021-01-09T08:10:49Z'
+      reason: MinimumReplicasAvailable
+      message: Deployment has minimum availability.
+```
+  报错
+```sql
+MountVolume.SetUp failed for volume "nfs-client-root" : mount failed: exit status 32 Mounting command: systemd-run Mounting arguments: --description=Kubernetes transient mount for /var/lib/kubelet/pods/67accf59-6a14-489d-a78b-7e03e05740ea/volumes/kubernetes.io~nfs/nfs-client-root --scope -- mount -t nfs 192.168.4.31:/home/dataexa/insight-microservice/workspace/ /var/lib/kubelet/pods/67accf59-6a14-489d-a78b-7e03e05740ea/volumes/kubernetes.io~nfs/nfs-client-root Output: Running scope as unit run-3903.scope. mount: wrong fs type, bad option, bad superblock on 192.168.4.31:/home/dataexa/insight-microservice/workspace/, missing codepage or helper program, or other error (for several filesystems (e.g. nfs, cifs) you might need a /sbin/mount.<type> helper program) In some cases useful info is found in syslog - try dmesg | tail or so. 
+```
+背景，镜像里有ubuntu,ubuntu 里已经安装了nfs 但是node节点上没安装，所以报这个错
+只要在node上安装nfs util 就可以了
+```sql
+yum install nfs-utils
+或者
+apt-get install nfs-common
+```
+

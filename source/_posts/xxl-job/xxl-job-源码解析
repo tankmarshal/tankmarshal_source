@@ -1,0 +1,7 @@
+---
+title: xxl-job 源码
+date: 2020-11-27 17:59:09
+tags:
+---
+# 背景
+诉求，jobhandler里需要获取jobid
